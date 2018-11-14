@@ -8,26 +8,36 @@ module CreateRouter = (Config: RouterConfig) => {
   module Container = {
     type action =
       | ChangeRoute(Config.route);
+
     type state = {
       route: Config.route,
-      watchUrlId: ref(ReasonReact.Router.watcherID),
+      watchUrlId: ref(option(ReasonReact.Router.watcherID)),
     };
+
     let component = ReasonReact.reducerComponent("CallstackRerouteRouter");
     let make = children => {
       ...component,
-      initialState: () =>
-        ReasonReact.Router.dangerouslyGetInitialUrl() |> Config.routeFromUrl,
+      initialState: () => {
+        route:
+          ReasonReact.Router.dangerouslyGetInitialUrl() |> Config.routeFromUrl,
+        watchUrlId: ref(None),
+      },
       reducer: (action, state) =>
         switch (action) {
         | ChangeRoute(route) => ReasonReact.Update({...state, route})
         },
       didMount: self =>
         self.state.watchUrlId :=
-          ReasonReact.Router.watchUrl(url =>
-            self.send(ChangeRoute(url |> Config.routeFromUrl))
+          Some(
+            ReasonReact.Router.watchUrl(url =>
+              self.send(ChangeRoute(url |> Config.routeFromUrl))
+            ),
           ),
       willUnmount: self =>
-        ReasonReact.Router.unwatchUrl(self.state.watchUrlId^),
+        switch (self.state.watchUrlId^) {
+        | Some(id) => ReasonReact.Router.unwatchUrl(id)
+        | None => ()
+        },
       render: self => children(~currentRoute=self.state.route),
     };
   };
